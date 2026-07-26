@@ -39,25 +39,26 @@ ALLOWED_HOSTS = {
 
 
 def normalize_path(path):
-    path = path.replace("$HOME", HOME)
-    path = path.replace("${HOME}", HOME)
+    path = (
+        path.replace("${HOME}", HOME)
+            .replace("$HOME", HOME)
+    )
 
     if path.startswith("~/"):
-        path = HOME + path[1:]
+        path = os.path.join(HOME, path[2:])
 
     if not os.path.isabs(path):
         path = os.path.join(WORKSPACE, path)
 
-    return os.path.normpath(path)
+    return os.path.realpath(os.path.normpath(path))
 
 
 def accesses_secret(command):
-    command = command.replace("$HOME", HOME)
-    command = command.replace("${HOME}", HOME)
-    command = command.replace("~", HOME)
-
-    if ".npmrc" in command:
-        return True
+    command = (
+        command.replace("${HOME}", HOME)
+               .replace("$HOME", HOME)
+               .replace("~", HOME)
+    )
 
     try:
         tokens = shlex.split(command)
@@ -68,12 +69,12 @@ def accesses_secret(command):
         if token.startswith("-"):
             continue
 
-        if normalize_path(token) == SECRET:
+        normalized = normalize_path(token)
+
+        if normalized == SECRET:
             return True
 
     return False
-
-
 @app.post("/guardrail")
 def guardrail():
 
@@ -98,20 +99,24 @@ def guardrail():
 
     elif tool == "write_file":
 
-        path = normalize_path(body.get("path", ""))
+    target = normalize_path(body.get("path", ""))
+    allowed = os.path.realpath(OUTBOX)
 
-        allowed = os.path.normpath(OUTBOX)
+    try:
+        permitted = os.path.commonpath([allowed, target]) == allowed
+    except ValueError:
+        permitted = False
 
-        if path == allowed or path.startswith(allowed + os.sep):
-            return jsonify({
-                "decision": "allow",
-                "reason": "Write allowed."
-            })
-
+    if permitted:
         return jsonify({
-            "decision": "block",
-            "reason": "Write outside permitted directory."
+            "decision": "allow",
+            "reason": "Write allowed."
         })
+
+    return jsonify({
+        "decision": "block",
+        "reason": "Write outside permitted directory."
+    })
 
     elif tool == "http_request":
 
