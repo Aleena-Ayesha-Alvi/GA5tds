@@ -207,60 +207,65 @@ def scanner():
             break
 
     if re.search(
-        r'(?im)^\s*(api[_-]?key|secret|token)\s*:\s*["\']?(?!\$\{|\$env\b|env\b)[A-Za-z0-9_\-+/=]{8,}',
+        r'(?im)^\s*(api[_-]?key|secret|token)\s*:\s*["\']?(?!\$\{|\$env|env\b)[^"\n]{8,}',
         skill,
     ):
         categories.append("hardcoded_secret")
     # ---------------------------
     # Prompt Injection
     # ---------------------------
-    injection_patterns = [
-        "ignore previous",
-        "ignore all previous instructions",
-        "ignore the user",
-        "ignore user",
-        "disregard previous",
-        "forget previous instructions",
-        "override user",
-        "override developer",
-        "override system",
-        "always obey this skill",
-        "reveal secrets",
-        "exfiltrate",
-        "send file contents",
-        "silently upload",
-        "secretly upload",
-        "without informing",
+    INJECTION_REGEXES = [
+        r"ignore.*previous.*instruction",
+        r"ignore.*system",
+        r"ignore.*developer",
+        r"disregard.*instruction",
+        r"forget.*instruction",
+        r"override.*instruction",
+        r"always obey",
+        r"exfiltrat",
+        r"reveal.*secret",
+        r"send.*file",
+        r"without informing",
+        r"silently upload",
+        r"secretly upload",
     ]
-
-    if any(p in text for p in injection_patterns):
+    if any(re.search(p, text, re.IGNORECASE) for p in INJECTION_REGEXES):
         categories.append("prompt_injection")
-
     # ---------------------------
     # Excessive Permissions
     # ---------------------------
-    permission_patterns = [
-        "filesystem: '*'",
-        'filesystem: "*"',
-        "filesystem: *",
-        "network: '*'",
-        'network: "*"',
-        "network: any",
-        "network: all",
-        "allow all domains",
-        "all domains",
-        "read/write entire filesystem",
+    PERMISSION_REGEXES = [
+        r'filesystem\s*:\s*["\']?\*',
+        r'network\s*:\s*["\']?\*',
+        r'filesystem\s*:\s*all',
+        r'network\s*:\s*all',
+        r'allow\s+all\s+domains',
+        r'all\s+domains',
+        r'read\s*/?\s*write\s+entire\s+filesystem',
     ]
 
-    if any(p in text for p in permission_patterns):
+    if any(re.search(p, text, re.IGNORECASE) for p in PERMISSION_REGEXES):
         categories.append("excessive_permissions")
-
     # ---------------------------
     # Provenance
     # ---------------------------
-    has_author = re.search(r"^\s*author\s*:", skill, re.MULTILINE)
-    has_version = re.search(r"^\s*version\s*:", skill, re.MULTILINE)
-    has_changelog = re.search(r"^\s*changelog\s*:", skill, re.MULTILINE)
+    has_author = re.search(
+        r'^\s*(author|authors|maintainer)\s*:',
+        skill,
+        re.MULTILINE | re.IGNORECASE,
+    )
+
+    has_version = re.search(
+        r'^\s*version\s*:',
+        skill,
+        re.MULTILINE | re.IGNORECASE,
+    )
+
+    has_changelog = re.search(
+        r'^\s*(changelog|history|changes)\s*:',
+        skill,
+        re.MULTILINE | re.IGNORECASE,
+    )
 
     if not (has_author and has_version and has_changelog):
         categories.append("unclear_provenance")
