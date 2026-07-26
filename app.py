@@ -39,12 +39,15 @@ ALLOWED_HOSTS = {
 
 
 def normalize_path(path):
-    path = (
-        path.replace("${HOME}", HOME)
-            .replace("$HOME", HOME)
-    )
+    if not isinstance(path, str):
+        return ""
 
-    if path.startswith("~/"):
+    path = path.replace("${HOME}", HOME)
+    path = path.replace("$HOME", HOME)
+
+    if path == "~":
+        path = HOME
+    elif path.startswith("~/"):
         path = os.path.join(HOME, path[2:])
 
     if not os.path.isabs(path):
@@ -52,22 +55,48 @@ def normalize_path(path):
 
     return os.path.realpath(os.path.normpath(path))
 
+import base64
 
 def accesses_secret(command):
-    command = (
-        command.replace("${HOME}", HOME)
-               .replace("$HOME", HOME)
-               .replace("~", HOME)
-    )
+    if not isinstance(command, str):
+        return False
+
+    command = command.replace("${HOME}", HOME)
+    command = command.replace("$HOME", HOME)
 
     try:
         tokens = shlex.split(command)
     except Exception:
         tokens = command.split()
 
+    candidates = list(tokens)
+
+    # Look inside quoted bash -c strings
     for token in tokens:
+        if "cat " in token or ".npmrc" in token:
+            try:
+                candidates.extend(shlex.split(token))
+            except Exception:
+                pass
+
+    # Try decoding base64-looking tokens
+    for token in list(candidates):
+        if len(token) >= 16 and re.fullmatch(r"[A-Za-z0-9+/=]+", token):
+            try:
+                decoded = base64.b64decode(token).decode("utf-8", "ignore")
+                candidates.extend(shlex.split(decoded))
+            except Exception:
+                pass
+
+    for token in candidates:
+
         if token.startswith("-"):
             continue
+
+        if token == "~":
+            token = HOME
+        elif token.startswith("~/"):
+            token = os.path.join(HOME, token[2:])
 
         normalized = normalize_path(token)
 
@@ -75,6 +104,7 @@ def accesses_secret(command):
             return True
 
     return False
+    
 @app.post("/guardrail")
 def guardrail():
 
@@ -103,7 +133,9 @@ def guardrail():
         allowed = os.path.realpath(OUTBOX)
 
         try:
-            permitted = os.path.commonpath([allowed, target]) == allowed
+            permitted = (
+                os.path.commonpath([allowed, target]) == allowed
+            )
         except ValueError:
             permitted = False
 
@@ -117,7 +149,6 @@ def guardrail():
             "decision": "block",
             "reason": "Write outside permitted directory."
         })
-
     elif tool == "http_request":
 
         url = body.get("url", "")
