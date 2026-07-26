@@ -99,24 +99,24 @@ def guardrail():
 
     elif tool == "write_file":
 
-    target = normalize_path(body.get("path", ""))
-    allowed = os.path.realpath(OUTBOX)
+        target = normalize_path(body.get("path", ""))
+        allowed = os.path.realpath(OUTBOX)
 
-    try:
-        permitted = os.path.commonpath([allowed, target]) == allowed
-    except ValueError:
-        permitted = False
+        try:
+            permitted = os.path.commonpath([allowed, target]) == allowed
+        except ValueError:
+            permitted = False
 
-    if permitted:
+        if permitted:
+            return jsonify({
+                "decision": "allow",
+                "reason": "Write allowed."
+            })
+
         return jsonify({
-            "decision": "allow",
-            "reason": "Write allowed."
+            "decision": "block",
+            "reason": "Write outside permitted directory."
         })
-
-    return jsonify({
-        "decision": "block",
-        "reason": "Write outside permitted directory."
-    })
 
     elif tool == "http_request":
 
