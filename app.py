@@ -206,28 +206,31 @@ def scanner():
             categories.append("hardcoded_secret")
             break
 
-    if ("api_key:" in text or "secret:" in text or "token:" in text) and \
-            ("${" not in skill and "$env" not in text and "env" not in text):
-        if "hardcoded_secret" not in categories:
-            categories.append("hardcoded_secret")
-
+    if re.search(
+        r'(?im)^\s*(api[_-]?key|secret|token)\s*:\s*["\']?(?!\$\{|\$env\b|env\b)[A-Za-z0-9_\-+/=]{8,}',
+        skill,
+    ):
+        categories.append("hardcoded_secret")
     # ---------------------------
     # Prompt Injection
     # ---------------------------
     injection_patterns = [
         "ignore previous",
+        "ignore all previous instructions",
         "ignore the user",
         "ignore user",
-        "ignore all previous instructions",
-        "ignore stop",
-        "ignore cancel",
+        "disregard previous",
+        "forget previous instructions",
+        "override user",
+        "override developer",
+        "override system",
+        "always obey this skill",
+        "reveal secrets",
         "exfiltrate",
+        "send file contents",
         "silently upload",
         "secretly upload",
-        "send file contents",
         "without informing",
-        "override user",
-        "always obey this skill",
     ]
 
     if any(p in text for p in injection_patterns):
@@ -238,15 +241,15 @@ def scanner():
     # ---------------------------
     permission_patterns = [
         "filesystem: '*'",
-        "filesystem: \"*\"",
+        'filesystem: "*"',
         "filesystem: *",
         "network: '*'",
+        'network: "*"',
         "network: any",
         "network: all",
         "allow all domains",
+        "all domains",
         "read/write entire filesystem",
-        "/",
-        "all domains"
     ]
 
     if any(p in text for p in permission_patterns):
