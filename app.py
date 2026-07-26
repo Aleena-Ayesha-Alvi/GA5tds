@@ -177,15 +177,14 @@ def guardrail():
 # ============================================================
 
 SECRET_PATTERNS = [
-    r"AKIA[0-9A-Z]{16}",                       # AWS
-    r"AIza[0-9A-Za-z\-_]{35}",                # Google
-    r"sk-[A-Za-z0-9]{20,}",                   # OpenAI
+    r"AKIA[0-9A-Z]{16}",
+    r"AIza[0-9A-Za-z\-_]{35}",
+    r"sk-[A-Za-z0-9]{20,}",
     r"https://hooks\.slack\.com/services/",
     r"-----BEGIN .* PRIVATE KEY-----",
     r"ghp_[A-Za-z0-9]{20,}",
-    r"xox[baprs]-",
+    r"xox[baprs]-[A-Za-z0-9-]{10,}",
 ]
-
 
 @app.post("/scanner")
 def scanner():
@@ -235,13 +234,14 @@ def scanner():
     # Excessive Permissions
     # ---------------------------
     PERMISSION_REGEXES = [
-        r'filesystem\s*:\s*["\']?\*',
-        r'network\s*:\s*["\']?\*',
-        r'filesystem\s*:\s*all',
-        r'network\s*:\s*all',
-        r'allow\s+all\s+domains',
-        r'all\s+domains',
-        r'read\s*/?\s*write\s+entire\s+filesystem',
+        r"entire\s+filesystem",
+        r"read[- ]?write\s+access\s+to\s+the\s+entire\s+filesystem",
+        r"filesystem\s*:.*entire\s+filesystem",
+        r"network\s*:.*unrestricted",
+        r"unrestricted\s+egress",
+        r"any\s+host",
+        r"allow\s+all\s+domains",
+        r"all\s+domains",
     ]
 
     if any(re.search(p, text, re.IGNORECASE) for p in PERMISSION_REGEXES):
